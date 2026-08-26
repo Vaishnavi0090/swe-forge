@@ -1,469 +1,817 @@
 # SWE-Forge
 
-**Adaptive, Self-Verifying Autonomous Software Engineering Platform**
+### Adaptive, Self-Verifying Autonomous Software Engineering Platform
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![LangGraph](https://img.shields.io/badge/LangGraph-StateGraph-orange)
-![LangChain](https://img.shields.io/badge/LangChain-StructuredTools-green)
-![Tests](https://img.shields.io/badge/tests-478%20passing-brightgreen)
-![Lint](https://img.shields.io/badge/ruff-clean-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+SWE-Forge is an explicit orchestration, verification, and safety layer built on top of [Open SWE](https://github.com/langchain-ai/open-swe) by LangChain.
 
-> **Status: architecture frozen.** Future work is driven by experimental
-> evidence, not new features. See
-> [docs/FINAL_PROJECT_STATUS.md](docs/FINAL_PROJECT_STATUS.md).
->
-> Built on top of [Open SWE](https://github.com/langchain-ai/open-swe) by LangChain.
-> Open SWE is the **foundation**; SWE-Forge is the **orchestration, verification and
-> safety layer added on top of it**. See [Attribution](#attribution).
+Open SWE provides the execution infrastructure — sandboxing, model/provider middleware, integrations, MCP transport, and the surrounding software-engineering platform.
+
+**SWE-Forge adds the control layer above it:** deterministic LangGraph orchestration, structured planning, dynamic multi-agent execution, repository intelligence, bounded self-repair, independent review, security/risk gating, adaptive model routing, experience memory, and quantitative evaluation.
+
+> **Open SWE = execution substrate**  
+> **SWE-Forge = orchestration + verification + safety**
 
 ---
 
-## What SWE-Forge is
+## Why SWE-Forge?
 
-SWE-Forge is **an explicit control and orchestration layer for autonomous software
-engineering, built on the Open SWE execution infrastructure.**
+Autonomous coding agents can generate code, but reliable software engineering requires more than producing a patch.
 
-It is **not** another Open SWE implementation, and **not** Open SWE rewritten with
-LangGraph. Open SWE remains the mature execution substrate — sandboxing, provider
-middleware, model construction, GitHub/Slack/Linear integration, MCP transport, the
-PR-review product. None of that is reimplemented here.
+A reliable coding system must answer:
 
-SWE-Forge contributes the layer above it, confined to `agent/sweforge/`:
+- **Where should the change be made?**
+- **Which agents or capabilities are relevant to the task?**
+- **Did the implementation actually work?**
+- **What should happen when verification fails?**
+- **Should the resulting change be allowed to ship?**
 
-| Contribution | Where |
+SWE-Forge makes these decisions explicit through a typed, stateful LangGraph workflow rather than leaving the entire control loop inside an LLM prompt.
+
+---
+
+# Architecture
+
+```text
+                              START
+                                |
+                         Task Intake
+                                |
+                    Repository Analysis
+                     AST + Import Graph
+                                |
+                   Task Complexity Analysis
+                       + Experience Memory
+                                |
+                            Planning
+                      Structured TaskPlan
+                                |
+                    Dynamic Agent Selection
+                                |
+                         Implementation
+                                |
+                         Verification
+                         Real pytest
+                         /       \
+                    passed       failed
+                       |             |
+                       |       Failure Analysis
+                       |             |
+                       |          Recovery
+                       |             |
+                       |       Re-verification
+                       |             |
+                       |        Escalation
+                       |             |
+                       +-------------+
+                                |
+                     Independent Review
+                       /             \
+                  approved          rejected
+                     |                  |
+                     |             Recovery
+                     |                  |
+                     +------------------+
+                                |
+                       Security Analysis
+                                |
+                           Risk Gate
+                         /           \
+                     LOW/MED         HIGH
+                        |              |
+                        |       Human Approval
+                        |              |
+                        +------+-------+
+                               |
+                         Finalization
+                               |
+                              END
+```
+
+### Workflow characteristics
+
+- **17 LangGraph nodes**
+- **5 conditional routers**
+- **2 bounded recovery loops**
+- **4 terminal nodes**
+- **7 terminal statuses + initial `pending` state**
+- Explicit typed state transitions
+- Structured outputs for important LLM decisions
+- Deterministic recovery and risk-routing logic
+
+Detailed architecture:
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/ARCHITECTURE_DIAGRAM.md`](docs/ARCHITECTURE_DIAGRAM.md)
+
+---
+
+# What I Built
+
+SWE-Forge is intentionally separated from the upstream Open SWE implementation.
+
+| Capability | SWE-Forge Implementation |
 |---|---|
-| Deterministic LangGraph orchestration (17 nodes, 5 routers, bounded loops) | `graph/workflow.py` |
-| Structured planning with validated plans | `planning/planner.py`, `schemas.py` |
-| Dynamic multi-agent dispatch (6 specialized agents + reviewer + diagnostician) | `agents/specialized.py` |
-| Repository intelligence (Python AST + import graph) | `repository/` |
-| 12 load-bearing LangChain tools | `tools/registry.py` |
-| Real agent tool-calling (`bind_tools` → `tool_calls` → `ToolMessage`) | `agents/tool_loop.py` |
-| Bounded self-repair with a deterministic failure taxonomy | `recovery/classifier.py` |
-| Model retry and cross-tier fallback | `routing/execution_policy.py` |
-| Hard execution budgets + `budget_exhausted` terminal state | `budget.py` |
-| Experience-aware planning (BM25 retrieval) | `memory/store.py` |
-| MCP orchestration (deny-by-default allowlist) | `mcp/orchestration.py` |
-| Independent review gate | `agents/roles.py` |
-| Security scanning and deterministic risk gating | `security/risk.py` |
-| Quantitative evaluation and ablation harness | `evaluation/` |
-| Always-on local trace (LangSmith optional) | `observability/trace.py` |
-| Registered LangGraph entry point | `graph/entrypoint.py` + `langgraph.json` |
-| Reproducible run manifests (commit SHA, versions, seed) | `evaluation/reproducibility.py` |
-| Real-benchmark harness (dry-run; no results claimed) | `evaluation/benchmarks/` |
+| Workflow orchestration | LangGraph `StateGraph` |
+| Structured planning | Pydantic-validated planning models |
+| Agent dispatch | 6 specialized agents + reviewer + diagnostician |
+| Repository intelligence | Python AST + import graph |
+| Tool layer | 12 LangChain `StructuredTool` tools |
+| Tool calling | `bind_tools → tool_calls → ToolMessage` |
+| Verification | Real pytest execution |
+| Failure handling | Deterministic failure taxonomy |
+| Self-repair | Bounded recovery loop |
+| Model routing | Per-role model tiers + retry/fallback |
+| Execution control | Hard execution budgets |
+| Independent review | Separate review gate |
+| Security | Secret/dangerous-pattern scanning |
+| Risk control | Deterministic additive risk scoring |
+| Experience memory | BM25 retrieval |
+| MCP | Deny-by-default orchestration layer |
+| Observability | Durable local traces + optional LangSmith |
+| Evaluation | Controlled ablation/evaluation harness |
+| Reproducibility | Run manifests, seeds, versions and commit information |
 
-Every row is implemented, tested, and traced to a source symbol in
-[docs/CUSTOMIZATIONS.md](docs/CUSTOMIZATIONS.md). Nothing else is claimed.
+The complete technology-level ownership mapping is available in:
 
-## In 60 seconds
-
-An AI agent that edits your repository has to answer four questions a chatbot never
-does: *where does this change belong*, *did it actually work*, *what happens when it
-fails*, and *should this ship at all*.
-
-Upstream Open SWE answers these inside a single ReAct agent loop, so the control flow
-lives in a prompt. **SWE-Forge makes the control flow explicit**: reasoning stays with
-the LLM, while a deterministic LangGraph `StateGraph` decides what happens next.
-
-Concretely, SWE-Forge adds:
-
-- **Repository intelligence** — real Python AST analysis and an import graph. Indexes
-  the current repository (upstream + the SWE-Forge overlay) — **907 files, 7,429 symbols, 1,036 import edges in ~1.5 s**.
-- **A bounded self-repair loop** — classify the failure deterministically, diagnose,
-  patch, re-verify. Raised task success from **50% to 83%** in the shipped ablation.
-- **An independent review gate** — catches changes that pass every test and are still
-  wrong.
-- **A deterministic risk gate** — in the shipped benchmark it blocked a change that
-  every other workflow variant shipped: green tests, reviewer approval, and a committed
-  credential. Scored **90/100 HIGH, human approval required**.
-- **A reproducible ablation harness** — 30 runs across 5 workflow variants, so every
-  architectural claim above is a measured number rather than an assertion. Including
-  [one honest negative result](#what-the-numbers-show).
-
-```bash
-export SWEFORGE_ALLOW_LOCAL_EXEC=1
-python -m agent.sweforge.cli demo --scenario pipeline_secret_risk_gate
-```
+- [`docs/CUSTOMIZATIONS.md`](docs/CUSTOMIZATIONS.md)
+- [`docs/LANGCHAIN_LANGGRAPH.md`](docs/LANGCHAIN_LANGGRAPH.md)
 
 ---
 
-## Architecture
+# What Makes SWE-Forge Different From Open SWE?
 
-```
-                            START
-                              |
-                        task_intake ----------(empty task)----------+
-                              |                                     |
-                     repository_analysis    <- AST + import graph    |
-                              |                                     |
-                  task_complexity_analysis  <- experience memory     |
-                              |                                     |
-                          planning          <- structured TaskPlan   |
-                              |                                     |
-                  dynamic_agent_selection   <- per-task roster       |
-                              |                                     |
-                       implementation       <- whole-file edits      |
-                              |                                     |
-                    +---- verification <---------------+   <- real pytest
-                    |         |                        |            |
-              (passed)     (failed)                    |            |
-                    |         |                        |            |
-                    |   failure_analysis               |  <- 10-category
-                    |         |                        |     classifier
-                    |   +-----+------+                 |            |
-                    | (budget)   (exhausted)           |            |
-                    |   |             |                |            |
-                    | recovery -------+----------------+  <- bounded
-                    |   ^             v                             |
-                    |   |        escalation ----------------------+  |
-                    v   |                                        |  |
-           independent_review  <- no implementer context         |  |
-                    |   |                                        |  |
-        +-----------+---+ (rejected, budget left)                |  |
-        | (approved)                                             |  |
-        v                                                        |  |
-  security_analysis     <- secret / dangerous-pattern scan       |  |
-        |                                                        |  |
-    risk_gate           <- additive, deterministic score         |  |
-        |                                                        |  |
-   +----+-----+                                                  |  |
-(HIGH)     (LOW/MED)                                             |  |
-   |           |                                                 |  |
-human_approval |<------------------------------------------------+--+
-   |       finalization                                          |
-   +-----------+------------------> END <------------------------+
-```
+SWE-Forge does **not** attempt to replace Open SWE.
 
-17 nodes, 5 conditional routers, 2 bounded loops, 4 terminal nodes, 7 terminal statuses (plus the initial `pending`).
+Instead, it adds an explicit orchestration layer around the existing execution infrastructure.
 
-Full detail in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. A flagship diagram
-distinguishing SWE-Forge-owned components from upstream Open SWE — plus the paired
-evaluation diagram — is in
-**[docs/ARCHITECTURE_DIAGRAM.md](docs/ARCHITECTURE_DIAGRAM.md)**.
-
----
-
-## Upstream vs. SWE-Forge
-
-The most important audit finding: **upstream Open SWE has no hand-authored domain
-`StateGraph`.** It builds its agent with `deepagents.create_deep_agent` plus 24
-middleware modules. Across 420 upstream Python files, the only `StateGraph` is
-`agent/scheduler.py` (cron scheduling). That is the gap SWE-Forge fills.
-
-| Capability | Upstream Open SWE | SWE-Forge |
+| Capability | Open SWE | SWE-Forge |
 |---|---|---|
-| Agent construction | `create_deep_agent` + 24 middleware | Explicit 17-node `StateGraph` |
-| Control flow | Emergent from prompt + ReAct loop | Deterministic typed routing |
-| Sandbox isolation | **Owned** (Daytona/Modal/E2B/Runloop) | Reused, never reimplemented |
-| Provider quirks / fallback / retry | **Owned** (`agent/middleware/`) | Reused, never reimplemented |
-| GitHub App, PRs, Slack, Linear, MCP | **Owned** | Reused, never reimplemented |
-| Repository static model | none | AST + import graph + ranking |
-| Test selection from dependencies | none | Targeted verification |
-| Failure taxonomy + bounded repair | Transport-level retry only | 10 categories, enforced bound |
-| In-loop review gate | PR-review *product* | Mid-run gate an implementation must pass |
-| Change-risk scoring | Access control only | Additive risk score + human gate |
-| Model selection | One model + fallback per run | Per-role tier routing + cost ledger |
-| Experience memory | none | BM25 retrieval over past runs |
-| Orchestration benchmark | Reviewer comment quality | 5-variant ablation harness |
+| Agent execution | Deep Agents / ReAct-style execution | Explicit workflow around execution |
+| Control flow | Primarily agent-driven | Typed LangGraph routing |
+| Repository model | Execution infrastructure | AST + import graph |
+| Agent selection | Agent execution model | Task-driven specialized-agent dispatch |
+| Verification | Existing execution infrastructure | Explicit verification node + recovery |
+| Failure handling | Provider/execution retries | Failure taxonomy + bounded self-repair |
+| Review | PR-review functionality | In-run independent review gate |
+| Model routing | Existing provider/model infrastructure | Per-role execution policy |
+| Experience memory | — | BM25 retrieval |
+| Evaluation | Existing project evaluation capabilities | SWE-Forge orchestration ablations |
 
-Every claim above is traced to real files and symbols in
-**[docs/CUSTOMIZATIONS.md](docs/CUSTOMIZATIONS.md)** and
-**[docs/LANGCHAIN_LANGGRAPH.md](docs/LANGCHAIN_LANGGRAPH.md)**.
-
-**Upstream files modified: 2** — `.gitignore` (appended two lines) and `README.md`
-(this file; upstream's original is preserved verbatim at
-[docs/UPSTREAM_README.md](docs/UPSTREAM_README.md)). No upstream Python module, test,
-config, entry point or license was touched.
+Open SWE remains the execution substrate. SWE-Forge focuses on making the **decision and control process explicit, inspectable, and measurable**.
 
 ---
+
+# LangChain & LangGraph Ownership
+
+A major design goal of SWE-Forge is to demonstrate genuine hands-on use of the LangChain ecosystem rather than simply inheriting upstream usage.
+
+## LangGraph
+
+SWE-Forge owns a separate graph implementation containing:
+
+- Custom `SWEForgeState`
+- Custom graph construction
+- Custom nodes
+- Conditional routers
+- Recovery transitions
+- State updates
+- Bounded loops
+- Explicit terminal states
+- Graph compilation
+- Registered graph entry points
+
+Primary implementation:
+
+```text
+agent/sweforge/graph/
+├── workflow.py
+└── entrypoint.py
+```
+
+## LangChain
+
+SWE-Forge implements and integrates multiple LangChain tools with:
+
+- Typed input schemas
+- Validation
+- Structured outputs
+- Error handling
+- Agent integration
+- Actual tool-calling loops
+
+The tool registry contains tools for capabilities such as:
+
+- Repository analysis
+- Repository graph queries
+- Relevant-file discovery
+- Test discovery
+- Validation execution
+- Git diff inspection
+- Failure analysis
+- Change-risk analysis
+
+Primary implementation:
+
+```text
+agent/sweforge/tools/
+```
+
+## Structured Outputs
+
+Important model decisions use explicit Pydantic schemas rather than relying exclusively on free-form model responses.
+
+Examples include:
+
+- Task planning
+- Agent selection
+- Failure diagnosis
+- Review decisions
+- Security/risk assessment
+
+This allows routing and state transitions to operate on validated structures rather than parsed prose.
+
+## LangSmith
+
+LangSmith instrumentation is supported for observability when credentials are available.
+
+The system remains functional without LangSmith through its local tracing/observability layer.
+
+More detail:
+
+[`docs/LANGCHAIN_LANGGRAPH.md`](docs/LANGCHAIN_LANGGRAPH.md)
+
+---
+
+# Key Engineering Mechanisms
+
+## 1. Adaptive Multi-Agent Execution
+
+Tasks are analyzed and mapped to specialized agent roles rather than sending every task through the same implementation path.
+
+The workflow supports specialized implementation, review, diagnosis, and security responsibilities.
+
+Agent selection is part of the execution path rather than being a display-only recommendation.
+
+---
+
+## 2. Repository Intelligence
+
+SWE-Forge builds a structural representation of the repository using:
+
+- Python AST analysis
+- Import relationships
+- Symbol-level information
+- Repository graph queries
+- Relevant-file ranking
+
+This provides deterministic repository evidence that can be used during planning and implementation.
+
+The repository-intelligence subsystem is deliberately separated from the LLM decision layer.
+
+---
+
+## 3. Bounded Self-Repair
+
+When verification fails:
+
+```text
+Verification
+      ↓
+Failure Classification
+      ↓
+Diagnosis
+      ↓
+Repair
+      ↓
+Re-verification
+```
+
+Recovery is bounded.
+
+If the workflow cannot recover within its execution limits, it transitions to escalation rather than looping indefinitely.
+
+---
+
+## 4. Independent Review
+
+Implementation and review are separate stages.
+
+The reviewer receives the implementation result independently and can reject a change that technically passes verification but does not satisfy the intended requirements.
+
+This creates a second quality gate before security/risk evaluation.
+
+---
+
+## 5. Deterministic Risk Gate
+
+SWE-Forge performs security/risk analysis after implementation and review.
+
+The risk layer includes:
+
+- Secret scanning
+- Dangerous-pattern detection
+- Deterministic risk scoring
+- Human-approval routing for high-risk changes
+
+An LLM may contribute findings, but it cannot simply lower the deterministic gate.
+
+---
+
+## 6. Hard Execution Budgets
+
+Execution budgets are enforced by the orchestration layer.
+
+Budgets can constrain resources such as:
+
+- Model calls
+- Tool calls
+- Recovery attempts
+- Execution time
+
+Budget exhaustion is represented explicitly in the graph rather than being treated as an ordinary model decision.
+
+---
+
+## 7. Model Retry & Fallback
+
+SWE-Forge separates retry behavior from model-tier fallback.
+
+The execution policy records individual attempts and can move between configured model tiers when the policy allows it.
+
+This makes model selection and fallback observable rather than implicit.
+
+---
+
+## 8. Experience Memory
+
+Previous run information can be stored and retrieved using BM25-based retrieval.
+
+BM25 was selected for the default path because software-engineering queries are identifier-heavy and the approach remains deterministic without requiring an external vector database.
+
+---
+
+# Evaluation
+
+SWE-Forge includes a controlled evaluation harness designed to measure its orchestration mechanisms rather than make unsupported claims about frontier-model capability.
+
+## Evaluation Design
+
+The primary ablation compares cumulative SWE-Forge workflow variants:
+
+```text
+A. Baseline
+      ↓
+B. + Repository Intelligence
+      ↓
+C. + Bounded Self-Repair
+      ↓
+D. + Independent Review
+      ↓
+E. Full SWE-Forge
+```
+
+The evaluation uses scripted deterministic model behavior so that the orchestration mechanisms are isolated from uncontrolled model variability.
 
 ## Results
 
-### Three experiments, never conflated
+| Variant | Task Success | Verification | Recovery | Human Gate |
+|---|---:|---:|---:|---:|
+| Baseline | 50% | 50% | — | 0 |
+| + Repository Intelligence | 50% | 50% | — | 0 |
+| + Self-Repair | **83%** | **83%** | 67% | 0 |
+| + Independent Review | **83%** | **83%** | 75% | 0 |
+| Full SWE-Forge | 67%* | **83%** | 75% | **1** |
 
-| | Question | Baseline | Status |
-|---|---|---|---|
-| **A — architectural ablation** | Does each SWE-Forge component help? | A stripped **SWE-Forge** graph | **COMPLETE** (30 runs) |
-| **B — system baseline** | Does SWE-Forge improve on *actual* Open SWE? | Real `agent.server.get_agent` | **UNAVAILABLE** (`comparable_pairs = 0`) |
-| **C — live model** | Behaviour with a real model deciding? | Same model both sides | **UNAVAILABLE** (no credential) |
+\* The lower headline success rate for the full workflow reflects the risk gate correctly blocking a high-risk change rather than treating unsafe execution as success.
 
-**No Open SWE vs SWE-Forge result exists in this repository.** The table below is
-Experiment A: every variant is SWE-Forge. It must not be read as a comparison
-against Open SWE.
+## Other Verified Results
 
-30 executions: 6 scenarios x 5 cumulative workflow variants. 0 unavailable.
-Reproduce with `python -m evaluation.runner && python -m evaluation.evaluator`.
+- **6/6** designed routing scenarios reached their expected terminal states.
+- Self-repair increased task success from **50% → 83%** in the shipped ablation.
+- A green-but-incorrect implementation was rejected by the independent review gate.
+- A credential-committing change was blocked by the risk gate with a **90/100 HIGH** risk score and human approval required.
+- Recovery terminates after bounded attempts rather than looping indefinitely.
 
-| Variant | Task success | Verification pass | Recovery success | Avg attempts | Escalations | Human gate | Nodes | Model calls | Tool calls |
-|---|---|---|---|---|---|---|---|---|---|
-| A. Baseline (single pass) | 50% | 50% | n/a | n/a | 0 | 0 | 54 | 18 | 12 |
-| B. + Repository intelligence | 50% | 50% | n/a | n/a | 0 | 0 | 54 | 18 | 108 |
-| C. + Bounded self-repair | **83%** | **83%** | 67% | 1.67 | 1 | 0 | 70 | 23 | 130 |
-| D. + Independent review | 83% | 83% | 75% | 1.50 | 1 | 0 | 78 | 30 | 138 |
-| E. Full SWE-Forge | 67%* | 83% | 75% | 1.50 | 1 | **1** | 88 | 30 | 170 |
+## Evaluation Boundary
 
-\* E's lower headline number **is the risk gate working**. `awaiting_human_approval` is
-not counted as success, and the only run that changes category is the one that tried to
-commit a credential. A benchmark rewarding that would measure the wrong thing.
+These experiments evaluate **SWE-Forge orchestration mechanisms**.
 
-**Graph routing correctness: 6/6 scenarios reached exactly their designed terminal
-state.**
+They do **not** establish:
 
-### What the numbers show
+- SWE-Forge vs. Open SWE performance
+- SWE-bench performance
+- Frontier-model capability
+- Real-world autonomous coding success rates
+- Real production model cost
 
-1. **Self-repair is what moves task success** (50% to 83%). The two scenarios that flip
-   are the ones whose first attempt was wrong — structurally unreachable for a
-   single-pass workflow.
-2. **Repository intelligence shows no end-to-end effect — a negative result, reported as
-   such.** A and B are identical because the harness pins the planner's output, so
-   richer evidence cannot change the plan. The subsystem is therefore measured
-   *directly* instead (907 files / 7,429 symbols / ~1.5 s; correct top-ranked file on
-   spot-check queries), and its end-to-end value is **untested pending a live-model
-   run**.
-3. **The review gate catches green-but-wrong work.** A change passing verification was
-   rejected for implementing 1 of 3 required validations, then repaired.
-4. **The risk gate blocks what everything else ships** (90/100 HIGH).
-5. **The recovery loop terminates** — exactly 3 attempts, then escalation.
-6. **Assurance is not free** — E runs 1.7x the nodes and 2x the model calls of baseline.
+The Open SWE head-to-head and live-model evaluations remain unavailable without the required credentials and execution environment.
 
-### Honest scope of the evaluation
+Full methodology:
 
-Model behaviour is **pinned by scripted fixtures** so orchestration is the only
-variable. The fixtures, edits and `pytest` runs are real; a repaired suite genuinely
-goes green.
-
-- **Measured:** graph paths, recovery counts, gate decisions, terminal states, real test
-  results, wall-clock, node/model/tool counts.
-- **Synthetic and labelled as such:** token counts, therefore cost.
-- **Not measured, not claimed:** frontier-model capability, SWE-bench, or that model
-  routing improves outcomes.
-
-Full methodology and limitations: **[docs/EVALUATION.md](docs/EVALUATION.md)**.
+[`docs/EVALUATION.md`](docs/EVALUATION.md)
 
 ---
 
-## Technology stack
+# What the Evaluation Taught Us
 
-Every technology solves a concrete problem. Nothing was added for the list.
+One of the useful results is a negative one.
 
-| Technology | Problem it solves |
+Repository intelligence did not change end-to-end task success in the scripted-model ablation because the harness pins the planner's decisions. This means the experiment cannot establish that richer repository evidence improves a live model's decisions.
+
+Instead of hiding that result, SWE-Forge reports it explicitly and measures the repository-intelligence subsystem directly.
+
+This distinction is important:
+
+> **Implemented ≠ measured end-to-end ≠ proven universally effective.**
+
+The project keeps those categories separate throughout its documentation.
+
+---
+
+# Technology Stack
+
+| Technology | Why it is used |
 |---|---|
-| **LangGraph** | Termination guarantees, auditable control flow, ablatable topology |
-| **LangChain tools** | One validated implementation callable by both nodes and agents |
-| **Structured outputs (Pydantic)** | Control flow must never depend on parsing prose |
-| **Python `ast`** | Exact syntactic facts about a repository, no model call needed |
-| **LangSmith** | Per-node spans; optional, no-op without credentials |
-| **Open SWE sandbox** | Untrusted code must not run on the host — reused, not rebuilt |
-| **BM25 (not embeddings)** | Identifier-heavy queries; deterministic; no service dependency |
+| **LangGraph** | Explicit stateful orchestration, routing and bounded loops |
+| **LangChain** | Typed, validated tools and model/tool interaction |
+| **Pydantic** | Structured outputs and validated workflow decisions |
+| **Python AST** | Deterministic repository structure analysis |
+| **LangSmith** | Optional execution tracing and observability |
+| **BM25** | Deterministic experience retrieval for identifier-heavy queries |
+| **Open SWE** | Sandbox, execution, provider infrastructure and integrations |
 
-Deliberately **not** added: a parallel MCP gateway (upstream already ships MCP clients,
-so duplicating it would inflate the stack rather than the system) and a vector database
-(rejected for the default path; see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)).
+Technologies were intentionally not added merely to increase the technology list.
+
+Each major technology solves a concrete architectural problem.
 
 ---
 
-## Installation
+# Quick Start
+
+## Clone
 
 ```bash
-git clone <this-repo> && cd open-swe
-python -m venv .venv && source .venv/bin/activate
-pip install "langgraph>=1.0" "langchain>=1.0" "pydantic>=2" pytest ruff
+git clone https://github.com/Vaishnavi0090/swe-forge.git
+cd swe-forge
 ```
 
-No API key is needed for the tests, the analyzer, the demo, or the evaluation suite.
-
-## Quick start
+## Create Environment
 
 ```bash
-export SWEFORGE_ALLOW_LOCAL_EXEC=1          # demos run real pytest on shipped fixtures
-
-python -m agent.sweforge.cli doctor          # configuration check
-python -m agent.sweforge.cli analyze --repo . --task "sandbox circuit breaker timeout"
-python -m agent.sweforge.cli showcase         # one-command full-pipeline demo
-python -m agent.sweforge.cli demo --list
-python -m agent.sweforge.cli demo --scenario pipeline_secret_risk_gate
-
-python -m pytest -c pytest-sweforge.ini      # 478 tests
-python -m evaluation.runner                  # 30-run ablation, ~37s
-python -m evaluation.evaluator               # Markdown + CSV + JSON report
+python -m venv .venv
 ```
 
-Running a real task (needs credentials):
+### macOS / Linux
 
 ```bash
-cp .env.example .env    # add a provider key
-python -m agent.sweforge.cli run --repo /path/to/repo --task "..."
+source .venv/bin/activate
 ```
 
-More: **[docs/DEMO.md](docs/DEMO.md)**.
+### Windows PowerShell
 
-## Reproducing everything from a clean environment
+```powershell
+.venv\Scripts\Activate.ps1
+```
 
-Verified in a fresh virtual environment with **no inherited `PYTHONPATH`**:
+## Install SWE-Forge Dependencies
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-sweforge.txt
-export SWEFORGE_ALLOW_LOCAL_EXEC=1          # fixtures only; see docs/SECURITY.md
-
-python -m pytest -c pytest-sweforge.ini      # 477 passed
-python -m evaluation.check_docs              # 13/13 docs match source
-python -m agent.sweforge.cli showcase        # full pipeline, writes traces.jsonl
-python -m evaluation.runner --repeat 3 --seed 0   # 30 runs, determinism check
-python -m evaluation.run_all_experiments     # retrieval / memory / routing / recovery
 ```
 
-## Configuration
-
-All configuration is environment-based; no model id or credential is hard-coded.
-
-| Variable | Purpose |
-|---|---|
-| `SWEFORGE_MODEL_{FAST,BALANCED,CODING,REASONING}` | Model id per routing tier |
-| `SWEFORGE_PRICE_{TIER}` | USD per 1M tokens, `input,output` |
-| `SWEFORGE_ALLOW_LOCAL_EXEC` | Gate for host execution (fixtures only) |
-| `SWEFORGE_MEMORY_PATH` | Experience memory location |
-| `LANGSMITH_TRACING`, `LANGSMITH_API_KEY` | Optional tracing (both required) |
-
-See [.env.example](.env.example).
-
-## Project structure
-
-```
-agent/sweforge/              <- the SWE-Forge layer
-  graph/workflow.py            StateGraph: nodes, routers, bounded loops
-  state/graph_state.py         SWEForgeState + custom reducers
-  schemas.py                   all structured-output models + validators
-  planning/planner.py          grounded structured planner, agent selection
-  repository/                  analyzer.py (AST) + graph_index.py (import graph)
-  agents/roles.py              implementer, independent reviewer, diagnostician
-  verification/                backends.py (sandbox) + verifier.py
-  recovery/classifier.py       deterministic failure taxonomy
-  security/risk.py             secret scan + additive risk scoring
-  routing/model_router.py      per-role tier policy + cost ledger
-  memory/store.py              BM25 experience retrieval
-  observability/tracing.py     optional LangSmith
-  tools/registry.py            12 LangChain StructuredTools
-  models/scripted.py           ScriptedChatModel (deterministic evaluation)
-  runner.py, cli.py            entry points
-
-evaluation/                  <- benchmark + ablation harness
-  scenarios.py  runner.py  evaluator.py  metrics.py
-  fixtures/     results/    reports/
-
-tests_sweforge/              <- 478 tests, no API key, no network
-docs/                        <- audit, architecture, evaluation, security, demo
-```
-
-## Security
-
-SWE-Forge autonomously modifies repositories, so it ships a **defence-in-depth risk
-layer** — explicitly *not* a security product:
-
-- Verification runs in the **Open SWE sandbox**. The host backend is env-gated and
-  refuses by default.
-- Secret and dangerous-pattern scanning over changed content.
-- A **deterministic** risk score (an LLM can add findings but cannot lower the gate).
-- HIGH risk produces `awaiting_human_approval`, a first-class terminal state.
-
-Full threat model, scoring table and known gaps: **[docs/SECURITY.md](docs/SECURITY.md)**.
-
-## Limitations
-
-Stated plainly. Negative results are reported, not hidden.
-
-### Status of every unavailable capability
-
-| Item | Status |
-|---|---|
-| **Live-model evaluation** | **UNAVAILABLE** — no provider credential. Track implemented (`evaluation/live/`), runnable once configured. No live number is claimed. |
-| **Open SWE head-to-head** | **UNAVAILABLE** — `comparable_pairs = 0`. The adapter resolves the genuine `agent.server.get_agent` (verified), but execution needs model **and** sandbox credentials. Adapter-exists is not benchmark-completed. |
-| **Real-world benchmark** | `REAL_WORLD_BENCHMARK = NOT_AVAILABLE`. The four fixtures are **deterministic architectural fixtures**, not SWE-bench. No issues were invented to inflate the suite. |
-| **MCP** | Orchestration implemented and tested against **deterministic fixtures** (payloads labelled `_fixture: true`). No live MCP server; no external result fabricated. |
-| **GitHub PR creation** | Risk-gated preparation implemented and mock-tested. Live creation **UNAVAILABLE** (no App installation). |
-
-### Component measurement (Phase 25)
-
-Three subsystems previously reported as "implemented but unmeasured" are now
-measured **directly**, since a scripted-model harness cannot see them end-to-end:
-
-| Component | Measured | Not measured |
-|---|---|---|
-| Repository intelligence | graph retrieval R@5 **1.0** vs lexical **0.875** (n=4, no LLM) | effect on task success |
-| Memory | relevant prior experience retrieved **2/2** (n=2) | effect on task success |
-| Model routing | adaptive costs **40%** of a fixed reasoning-tier model (n=4) | whether reliability is preserved |
-| Recovery | detection **10/10** categories | 7 of 10 categories have no benchmark example (`untested`) |
-
-Retrieval precision saturates at 1.0 for every strategy: the fixtures are too
-easy to discriminate on precision. Reported, not spun.
-
-### Statistical limitations
-
-Six scenarios across four single-module fixtures: enough to cover every terminal state,
-**not** enough for statistical claims. One run per cell, one machine, no repeated-trial
-variance analysis. No confidence intervals are offered because none would be meaningful
-at n=6. Token counts under scripted models are synthetic, so cost figures demonstrate
-ledger accounting rather than real spend.
-
-### Implementation limitations
-
-1. Python-only AST; other languages are inventoried, not parsed.
-2. `find_callers` resolves definition sites and importers, not aliased or dynamic calls.
-3. Risk scoring is pattern-based — false positives and negatives are expected, and
-   weights are hand-tuned judgement, not empirically derived.
-4. Repository intelligence, memory and model routing have **no measured end-to-end
-   effect** (invisible to a scripted-model harness).
-5. Six scenarios and four small fixtures: enough to cover every terminal state, not
-   enough for statistical claims.
-6. No live-model or public-benchmark run. No SWE-bench number is claimed.
-7. Concurrent subtask execution is implemented and tested but runs sequentially in
-   evaluation for reproducibility.
-
-## Future work
-
-Ordered by value:
-
-1. **Live-model evaluation** — the highest-value next step; it is what would finally
-   test repository intelligence, memory and routing end-to-end.
-2. Register the SWE-Forge graph in `langgraph.json` for deployment alongside upstream.
-3. Extend AST analysis to TypeScript (the upstream repo is 310 TS/TSX files).
-4. Replace hand-tuned risk weights with weights fit to labelled outcomes.
-5. Repeated-trial variance analysis on wall-clock and cost.
-
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/UPSTREAM_AUDIT.md](docs/UPSTREAM_AUDIT.md) | What Open SWE provides, measured; extension points; non-duplication rules |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Subsystem design, decisions and their costs |
-| [docs/LANGCHAIN_LANGGRAPH.md](docs/LANGCHAIN_LANGGRAPH.md) | Inherited vs. implemented, with code |
-| [docs/CUSTOMIZATIONS.md](docs/CUSTOMIZATIONS.md) | Technology traceability table; files added |
-| [docs/EVALUATION.md](docs/EVALUATION.md) | Methodology, results, limitations |
-| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, risk scoring, known gaps |
-| [docs/DEMO.md](docs/DEMO.md) | Guided walkthrough |
-| [docs/ARCHITECTURE_DIAGRAM.md](docs/ARCHITECTURE_DIAGRAM.md) | Flagship system + evaluation diagrams |
-| [docs/FINAL_PROJECT_STATUS.md](docs/FINAL_PROJECT_STATUS.md) | Frozen status: what is measured, what is unavailable |
-| [docs/PROJECT_CLAIMS.md](docs/PROJECT_CLAIMS.md) | Every claim sorted verified / not-live-validated / not implemented |
-| [docs/RESUME_CLAIMS.md](docs/RESUME_CLAIMS.md) | Strongest defensible claims with evidence |
-| [docs/INTERVIEW_GUIDE.md](docs/INTERVIEW_GUIDE.md) | Grounded answers to 20 likely questions |
-| [docs/UPSTREAM_README.md](docs/UPSTREAM_README.md) | Upstream Open SWE README, verbatim |
+No API key is required for the deterministic tests, repository analyzer, showcase, or evaluation harness.
 
 ---
 
-## Attribution
+# Quick Demo
 
-**SWE-Forge is built on the [Open SWE](https://github.com/langchain-ai/open-swe)
-open-source project by LangChain, Inc.**
+Enable the local execution gate for the shipped deterministic fixtures.
 
-Open SWE provides the foundation this project builds on: the sandbox infrastructure, the
-middleware stack, model instantiation, GitHub/Slack/Linear integrations, MCP clients, the
-PR-review product, the web dashboard, and its own test suite. **That work is not mine.**
+### macOS / Linux
 
-SWE-Forge is the layer added on top: the explicit LangGraph orchestration, repository
-intelligence, self-verification, failure classification and bounded repair, the in-loop
-review gate, the change-risk engine, adaptive model routing, experience memory, and the
-evaluation harness — all confined to `agent/sweforge/`, `evaluation/`, `tests_sweforge/`
-and `docs/`.
+```bash
+export SWEFORGE_ALLOW_LOCAL_EXEC=1
+```
 
-The upstream MIT license and `Copyright (c) LangChain, Inc.` are retained unchanged in
-[LICENSE](LICENSE).
+### Windows PowerShell
+
+```powershell
+$env:SWEFORGE_ALLOW_LOCAL_EXEC="1"
+```
+
+Run the system showcase:
+
+```bash
+python -m agent.sweforge.cli showcase
+```
+
+Run the security/risk-gate demonstration:
+
+```bash
+python -m agent.sweforge.cli demo --scenario pipeline_secret_risk_gate
+```
+
+Check available demonstrations:
+
+```bash
+python -m agent.sweforge.cli demo --list
+```
+
+Inspect repository intelligence:
+
+```bash
+python -m agent.sweforge.cli analyze --repo . --task "sandbox circuit breaker timeout"
+```
+
+Check configuration:
+
+```bash
+python -m agent.sweforge.cli doctor
+```
+
+More detailed walkthrough:
+
+[`docs/DEMO.md`](docs/DEMO.md)
+
+---
+
+# Running Tests
+
+Run the SWE-Forge test suite:
+
+```bash
+python -m pytest -c pytest-sweforge.ini
+```
+
+The tests are designed to run without model-provider credentials or network access.
+
+Run documentation consistency checks:
+
+```bash
+python -m evaluation.check_docs
+```
+
+Run the deterministic evaluation:
+
+```bash
+python -m evaluation.runner
+```
+
+Generate evaluation reports:
+
+```bash
+python -m evaluation.evaluator
+```
+
+Run reproducibility checks:
+
+```bash
+python -m evaluation.runner --repeat 3 --seed 0
+```
+
+Run the component-level experiments:
+
+```bash
+python -m evaluation.run_all_experiments
+```
+
+---
+
+# Running a Real Task
+
+Real model execution requires provider credentials.
+
+Create a local environment file:
+
+```bash
+cp .env.example .env
+```
+
+Then configure the required provider/model settings.
+
+Run:
+
+```bash
+python -m agent.sweforge.cli run \
+  --repo /path/to/repository \
+  --task "Describe the software change you want to implement"
+```
+
+Never commit `.env` or provider credentials.
+
+---
+
+# Project Structure
+
+```text
+agent/sweforge/
+│
+├── agents/
+│   ├── roles.py
+│   ├── specialized.py
+│   └── tool_loop.py
+│
+├── graph/
+│   ├── workflow.py
+│   └── entrypoint.py
+│
+├── planning/
+│   └── planner.py
+│
+├── repository/
+│   ├── analyzer.py
+│   └── graph_index.py
+│
+├── verification/
+│   ├── backends.py
+│   └── verifier.py
+│
+├── recovery/
+│   └── classifier.py
+│
+├── routing/
+│   ├── model_router.py
+│   └── execution_policy.py
+│
+├── security/
+│   └── risk.py
+│
+├── memory/
+│   └── store.py
+│
+├── tools/
+│   └── registry.py
+│
+├── observability/
+│   └── trace.py
+│
+├── state/
+│   └── graph_state.py
+│
+├── schemas.py
+├── budget.py
+├── runner.py
+└── cli.py
+
+evaluation/
+├── scenarios.py
+├── runner.py
+├── evaluator.py
+├── metrics.py
+├── benchmarks/
+└── live/
+
+tests_sweforge/
+└── SWE-Forge-specific tests
+
+docs/
+├── ARCHITECTURE.md
+├── ARCHITECTURE_DIAGRAM.md
+├── LANGCHAIN_LANGGRAPH.md
+├── CUSTOMIZATIONS.md
+├── EVALUATION.md
+├── SECURITY.md
+├── DEMO.md
+├── FINAL_PROJECT_STATUS.md
+├── PROJECT_CLAIMS.md
+├── RESUME_CLAIMS.md
+└── INTERVIEW_GUIDE.md
+```
+
+---
+
+# Security
+
+SWE-Forge autonomously modifies repositories, so safety is treated as a first-class concern.
+
+The security layer provides:
+
+- Open SWE sandbox execution for untrusted code
+- Host-execution gating
+- Secret scanning
+- Dangerous-pattern detection
+- Deterministic risk scoring
+- Human approval for high-risk changes
+- Explicit terminal state for approval-required execution
+
+The risk system is a **defence-in-depth mechanism**, not a complete security product.
+
+See:
+
+[`docs/SECURITY.md`](docs/SECURITY.md)
+
+---
+
+# Observability & Reproducibility
+
+SWE-Forge maintains local execution traces so runs remain inspectable even when LangSmith is disabled.
+
+When configured, LangSmith can additionally provide model/tool/node-level observability.
+
+Reproducibility information includes:
+
+- Git commit SHA
+- Software versions
+- Seed information
+- Run metadata
+- Execution decisions
+- Tool interactions
+- Recovery information
+- Terminal state
+
+---
+
+# Current Scope & Limitations
+
+The project deliberately distinguishes between capabilities that are implemented, capabilities that have been experimentally measured, and capabilities that require external infrastructure.
+
+## Currently Unavailable
+
+### Live-model evaluation
+
+No provider credential is included in the repository. The live evaluation harness exists but no live result is claimed.
+
+### Open SWE head-to-head
+
+The adapter resolves the genuine upstream `agent.server.get_agent`, but a complete paired benchmark requires model and sandbox credentials.
+
+Therefore, no Open SWE vs. SWE-Forge performance result is claimed.
+
+### SWE-bench / Public Benchmark Result
+
+No SWE-bench number is claimed.
+
+### Live MCP Server
+
+MCP orchestration is implemented and tested using deterministic fixtures. No external MCP result is fabricated.
+
+### Live GitHub PR Creation
+
+Risk-gated preparation is implemented and mock-tested, but live PR creation requires the appropriate GitHub App installation.
+
+## Known Implementation Limitations
+
+- Repository AST analysis currently focuses on Python.
+- Some call-graph relationships involving aliases or dynamic calls are not resolved.
+- Risk weights are hand-tuned rather than learned from a labelled security dataset.
+- Evaluation fixtures are intentionally small and deterministic.
+- Live-model behavior has not been used to establish general autonomous coding performance.
+
+Full status:
+
+[`docs/FINAL_PROJECT_STATUS.md`](docs/FINAL_PROJECT_STATUS.md)
+
+---
+
+# Documentation
+
+| Document | Description |
+|---|---|
+| [`ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Detailed system architecture and design decisions |
+| [`ARCHITECTURE_DIAGRAM.md`](docs/ARCHITECTURE_DIAGRAM.md) | System and evaluation architecture diagrams |
+| [`LANGCHAIN_LANGGRAPH.md`](docs/LANGCHAIN_LANGGRAPH.md) | LangChain/LangGraph ownership and implementation |
+| [`CUSTOMIZATIONS.md`](docs/CUSTOMIZATIONS.md) | Technology-level source traceability |
+| [`EVALUATION.md`](docs/EVALUATION.md) | Evaluation methodology, results and limitations |
+| [`SECURITY.md`](docs/SECURITY.md) | Threat model and risk controls |
+| [`DEMO.md`](docs/DEMO.md) | Guided demonstration |
+| [`FINAL_PROJECT_STATUS.md`](docs/FINAL_PROJECT_STATUS.md) | Final verified project status |
+| [`PROJECT_CLAIMS.md`](docs/PROJECT_CLAIMS.md) | Claim/evidence classification |
+| [`RESUME_CLAIMS.md`](docs/RESUME_CLAIMS.md) | Defensible resume-level claims |
+| [`INTERVIEW_GUIDE.md`](docs/INTERVIEW_GUIDE.md) | Technical interview questions and answers |
+| [`UPSTREAM_AUDIT.md`](docs/UPSTREAM_AUDIT.md) | Open SWE capability and extension-point audit |
+| [`UPSTREAM_README.md`](docs/UPSTREAM_README.md) | Preserved upstream Open SWE README |
+
+---
+
+# Resume-Level Summary
+
+> **SWE-Forge — Adaptive Self-Verifying Software Engineering Agent**
+>
+> Built an explicit LangGraph orchestration layer over Open SWE with structured planning, dynamic multi-agent dispatch, repository intelligence, bounded self-repair, independent review, deterministic security/risk gating, adaptive model routing, experience memory, and a controlled evaluation harness.
+
+---
+
+# Attribution
+
+SWE-Forge is built on the [Open SWE](https://github.com/langchain-ai/open-swe) open-source project by LangChain, Inc.
+
+Open SWE provides the execution foundation, including sandbox infrastructure, provider/model middleware, integrations, MCP clients, the PR-review product, dashboard infrastructure, and its existing test suite.
+
+**SWE-Forge does not claim those upstream components as original work.**
+
+SWE-Forge adds the orchestration and verification layer, primarily contained in:
+
+```text
+agent/sweforge/
+evaluation/
+tests_sweforge/
+docs/
+```
+
+The upstream MIT license and copyright notice are retained in [`LICENSE`](LICENSE).
+
+---
+
+# License
+
+See [`LICENSE`](LICENSE) for the applicable license and upstream attribution.
