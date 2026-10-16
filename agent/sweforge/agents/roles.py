@@ -154,7 +154,8 @@ class ImplementationAgent:
     def run(
         self, subtask: Subtask, plan: TaskPlan, *, extra_files: list[str] | None = None
     ) -> ImplementationResult:
-        paths = list(dict.fromkeys([*subtask.target_files, *(extra_files or [])]))
+        extras: list[str] = extra_files or []
+        paths: list[str] = list(dict.fromkeys([*subtask.target_files, *extras]))
         context = read_files(self.backend, paths)
 
         decision = self.router.select("implementation", complexity=plan.complexity)

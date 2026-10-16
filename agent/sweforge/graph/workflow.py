@@ -723,6 +723,7 @@ def build_nodes(runtime: SWEForgeRuntime) -> dict[str, Any]:
     # -- 12. risk_gate -----------------------------------------------------
     def risk_gate(state: SWEForgeState) -> dict[str, Any]:
         review = state.get("review_results")
+        verification = state.get("test_results")
         # The tool path validates the change payload; the typed engine call
         # below is the authoritative one because the gate needs a RiskScore
         # object including factors, and must never depend on a tool failing open.
@@ -731,15 +732,13 @@ def build_nodes(runtime: SWEForgeRuntime) -> dict[str, Any]:
             {
                 "files": dict(runtime.written_files),
                 "deleted": [],
-                "verification_passed": bool(
-                    (state.get("test_results") or None) and state["test_results"].passed
-                ),
+                "verification_passed": bool(verification and verification.passed),
             },
             node="risk_gate",
         )
         score = runtime.risk_engine.assess(
             ChangeSet(files=dict(runtime.written_files)),
-            verification=state.get("test_results"),
+            verification=verification,
             findings=list(state.get("security_findings", [])),
             review_rejected=bool(review is not None and not review.approved),
             recovery_attempts=len(state.get("recovery_attempts", [])),

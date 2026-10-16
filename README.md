@@ -414,7 +414,7 @@ Full methodology:
 
 # What the Evaluation Taught Us
 
-One of the useful results is a negative one.
+One of the useful results is a negative result.
 
 Repository intelligence did not change end-to-end task success in the scripted-model ablation because the harness pins the planner's decisions. This means the experiment cannot establish that richer repository evidence improves a live model's decisions.
 
@@ -726,6 +726,16 @@ Reproducibility information includes:
 The project deliberately distinguishes between capabilities that are implemented, capabilities that have been experimentally measured, and capabilities that require external infrastructure.
 
 ## Currently Unavailable
+
+Each capability below is reported with an explicit status rather than a placeholder number. Where a capability could not be exercised, the harness records that fact instead of synthesising a result.
+
+| Capability | Reported status | Where it is recorded |
+|---|---|---|
+| Real-world benchmark (SWE-bench or similar) | `NOT_AVAILABLE` | `REAL_WORLD_BENCHMARK_STATUS` in `evaluation/benchmarks/harness.py`; the benchmark dry-run downloads and executes nothing |
+| Open SWE head-to-head | `comparable_pairs = 0` | `evaluation/results/experiment_b.json`; no head-to-head conclusion may be drawn from it |
+| Live-model evaluation | `UNAVAILABLE` | `evaluation/live/`; reported as UNAVAILABLE whenever no provider credential is configured |
+| Live GitHub PR creation | `UNAVAILABLE` | `agent/sweforge/github/finalization.py`; needs a GitHub App installation |
+| Live MCP server | not exercised | MCP orchestration is tested against deterministic fixtures only |
 
 ### Live-model evaluation
 

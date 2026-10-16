@@ -1,5 +1,9 @@
 # Preview environment
 
+> **SWE-Forge fork note:** the `Build preview branch` and `Publish preview dashboard image`
+> workflows are manual-only (`workflow_dispatch`) in this repository, because they depend on
+> LangChain's deployment infrastructure. This page documents the upstream Open SWE setup.
+
 A preview environment is a second instance of Open SWE, deployed from the `preview`
 branch, that runs ahead of production. Set it up by following
 [INSTALLATION.md](INSTALLATION.md) end to end a second time — its own GitHub App, Slack

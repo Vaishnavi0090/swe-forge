@@ -1,15 +1,19 @@
 name: Build preview branch
+# NOTE (fork): upstream Open SWE runs this workflow automatically, but it depends on
+# LangChain-owned infrastructure (a `preview` deployment branch and its GKE environment). On a fork that always fails, so it is
+# manual-only here. Re-enable the original trigger only if you provide those.
 
 permissions:
   contents: write
   pull-requests: write
 
 on:
-  push:
-    branches: ["main"]
-  pull_request_target:
-    types: [labeled, unlabeled, synchronize, reopened, closed]
   workflow_dispatch:
+  # Upstream triggers (disabled on this fork):
+  # push:
+  #   branches: ["main"]
+  # pull_request_target:
+  #   types: [labeled, unlabeled, synchronize, reopened, closed]
 
 concurrency:
   group: build-preview-branch

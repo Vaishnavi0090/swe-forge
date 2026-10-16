@@ -65,6 +65,7 @@ def _guard(name: str, fn: Any) -> Any:
             message = f"{type(exc).__name__}: {exc}"
             context.ledger.record(ToolCall(name, ..., False, message))
             return {"ok": False, "error": message}
+
     return wrapper
 ```
 
@@ -242,6 +243,7 @@ def make_route_after_failure_analysis(config: WorkflowConfig):
         if attempts < config.max_recovery_attempts:
             return "recovery"
         return "escalation"
+
     return route
 ```
 
@@ -377,8 +379,8 @@ had zero non-registry references** — dead demonstration tools.
 contract:
 
 ```python
-bound = model.bind_tools(tools)          # real LangChain binding
-response = bound.invoke(conversation)    # AIMessage with .tool_calls
+bound = model.bind_tools(tools)  # real LangChain binding
+response = bound.invoke(conversation)  # AIMessage with .tool_calls
 for call in response.tool_calls:
     content, ok = self._run_tool(by_name[call["name"]], call["args"])
     conversation.append(ToolMessage(content=content, tool_call_id=call["id"]))

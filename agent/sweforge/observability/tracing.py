@@ -19,14 +19,14 @@ No credential is ever read into a log, echoed, or committed.
 
 import contextlib
 import os
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import Any
 
 TRACING_ENV_VARS = ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2")
 API_KEY_ENV_VARS = ("LANGSMITH_API_KEY", "LANGCHAIN_API_KEY")
 
 
-def tracing_enabled(env: dict[str, str] | None = None) -> bool:
+def tracing_enabled(env: Mapping[str, str] | None = None) -> bool:
     """True only when tracing is switched on AND a key is configured."""
     environ = env if env is not None else os.environ
     switched_on = any(
@@ -37,7 +37,7 @@ def tracing_enabled(env: dict[str, str] | None = None) -> bool:
     return switched_on and has_key
 
 
-def project_name(env: dict[str, str] | None = None) -> str:
+def project_name(env: Mapping[str, str] | None = None) -> str:
     environ = env if env is not None else os.environ
     return environ.get("LANGSMITH_PROJECT") or environ.get("LANGCHAIN_PROJECT") or "sweforge"
 
@@ -147,7 +147,7 @@ def run_metadata(variant: str, repository: str, **extra: Any) -> dict[str, Any]:
     return payload
 
 
-def describe_configuration(env: dict[str, str] | None = None) -> dict[str, Any]:
+def describe_configuration(env: Mapping[str, str] | None = None) -> dict[str, Any]:
     """Non-secret view of the tracing configuration, safe to print or log."""
     environ = env if env is not None else os.environ
     return {

@@ -1,9 +1,13 @@
 name: OpenWiki Update
+# NOTE (fork): upstream Open SWE runs this workflow automatically, but it depends on
+# LangChain-owned infrastructure (LS_GATEWAY_OPENAI_API_KEY and LANGSMITH_API_KEY secrets). On a fork that always fails, so it is
+# manual-only here. Re-enable the original trigger only if you provide those.
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 8 * * *"
+  # Upstream trigger (disabled on this fork):
+  # schedule:
+  #   - cron: "0 8 * * *"
 
 permissions:
   contents: write

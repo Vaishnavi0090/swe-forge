@@ -1,12 +1,16 @@
 name: Promote main to prod
+# NOTE (fork): upstream Open SWE runs this workflow automatically, but it depends on
+# LangChain-owned infrastructure (a `prod` deployment branch). On a fork that always fails, so it is
+# manual-only here. Re-enable the original trigger only if you provide those.
 
 permissions:
   contents: write
 
 on:
-  schedule:
-    - cron: "0 8 * * *"
   workflow_dispatch:
+  # Upstream trigger (disabled on this fork; it force-pushes main to `prod` daily):
+  # schedule:
+  #   - cron: "0 8 * * *"
 
 concurrency:
   group: promote-main-to-prod

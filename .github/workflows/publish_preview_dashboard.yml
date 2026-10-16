@@ -1,12 +1,16 @@
 name: Publish preview dashboard image
+# NOTE (fork): upstream Open SWE runs this workflow automatically, but it depends on
+# LangChain-owned infrastructure (the GCP_WIF_PROVIDER / GCP_CI_SERVICE_ACCOUNT variables and LangChain's Artifact Registry). On a fork that always fails, so it is
+# manual-only here. Re-enable the original trigger only if you provide those.
 
 # `preview` is force-pushed on every push to main and on every label event, and
 # the GKE deployment pulls `:preview` on restart. Publishing here is what makes a
 # merge to main reach dev.open-swe.langchain.dev.
 on:
-  push:
-    branches: [preview]
   workflow_dispatch:
+  # Upstream trigger (disabled on this fork):
+  # push:
+  #   branches: [preview]
 
 # A force-push mid-build would otherwise race an older commit onto the tag.
 concurrency:

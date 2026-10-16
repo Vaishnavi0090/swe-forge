@@ -13,7 +13,7 @@ sibling's result.
 """
 
 import operator
-from typing import Annotated, Any, Literal, TypedDict
+from typing import Annotated, Any, Literal, Required, TypedDict
 
 from agent.sweforge.schemas import (
     ExecutionMetrics,
@@ -68,7 +68,8 @@ class SWEForgeState(TypedDict, total=False):
     """Typed state threaded through every SWE-Forge node."""
 
     # --- inputs -----------------------------------------------------------
-    task: str
+    #: The only mandatory key: every node reads it, and ``initial_state`` always sets it.
+    task: Required[str]
     repository: str
     repo_root: str
 

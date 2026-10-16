@@ -41,8 +41,8 @@ long-running work while keeping every one finite.
 ## Usage contract
 
 ```python
-budget.check_model_call()          # raises BudgetExceeded if this call would breach
-response = model.invoke(prompt)    # only reached when within budget
+budget.check_model_call()  # raises BudgetExceeded if this call would breach
+response = model.invoke(prompt)  # only reached when within budget
 budget.consume_model_call(input_tokens=..., output_tokens=..., cost_usd=...)
 ```
 

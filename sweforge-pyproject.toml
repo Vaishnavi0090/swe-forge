@@ -4,7 +4,12 @@
 # mode is unchanged. This file additionally makes the SWE-Forge layer installable
 # as an identifiable package for development and CI:
 #
-#     pip install -e . -f sweforge-pyproject.toml     # see docs/INSTALL_SWEFORGE.md
+#     # From a clean directory containing agent/sweforge, evaluation/ and this
+#     # file saved as `pyproject.toml`:
+#     pip install -e .
+#
+# (`pip install -f` means --find-links, not "use this file", so it cannot select
+# this config. The README's Quick Start covers the normal in-repo workflow.)
 #
 # It deliberately does NOT package or vendor Open SWE. Upstream is declared as an
 # optional integration requirement: the SWE-Forge core (graph, agents, tools,
