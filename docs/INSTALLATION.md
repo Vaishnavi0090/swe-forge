@@ -452,20 +452,6 @@ If `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET` are unset, the "Sign in with Slack" l
 
 Create a `.env` file in the project root. Below is the full list — only fill in the sections relevant to the triggers you configured.
 
-The Open SWE coding and reviewer graphs' `web_search` tool works without search
-credentials through [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp).
-Anonymous search uses Fast mode and returns relevant page excerpts, subject to the
-service's free-tier limits. Existing `EXA_API_KEY` configurations continue to use Exa.
-Set `WEB_SEARCH_PROVIDER=parallel` or `exa` to choose explicitly, or `disabled` to
-prevent search requests. A selected provider's failure is returned to the agent
-without switching providers. Parallel requests have a 30-second total timeout.
-
-With Parallel, `num_results` caps the returned results (the service may return fewer),
-and `include_contents=True` includes excerpts rather than full pages. Use the existing
-`fetch_url` tool when a page needs a closer read. Results retain the sandbox JSONL
-and bounded inline formats used by the agent. Search queries are sent from the
-server process to `https://search.parallel.ai/mcp`; no Parallel credential is needed.
-
 ```bash
 # === LangSmith ===
 LANGSMITH_API_KEY_PROD=""              # From step 4a
@@ -577,10 +563,7 @@ SLACK_CLIENT_ID=""
 SLACK_CLIENT_SECRET=""
 SLACK_TEAM_ID=""                       # Optional; restrict linking to one workspace (T...)
 
-# === Web search (optional configuration) ===
-# auto: Exa when EXA_API_KEY is set; otherwise free, anonymous Parallel Search MCP.
-# Explicit choices: parallel, exa, disabled. Provider errors do not trigger fallback.
-WEB_SEARCH_PROVIDER="auto"
+# === Exa (optional — enables web search tool) ===
 EXA_API_KEY=""                         # From https://dashboard.exa.ai
 
 # === Reviewer / Analyzer (optional) ===
