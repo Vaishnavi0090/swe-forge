@@ -126,6 +126,7 @@ async def web_search(
 
 async def _parallel_search(query: str, num_results: int, include_contents: bool) -> str:
     from langchain_mcp_adapters.client import MultiServerMCPClient
+    from langchain_mcp_adapters.sessions import Connection
     from langgraph.config import get_config
 
     try:
@@ -133,16 +134,15 @@ async def _parallel_search(query: str, num_results: int, include_contents: bool)
     except RuntimeError:
         thread_id = None
     session_id = hashlib.sha256(str(thread_id).encode()).hexdigest() if thread_id else _SESSION_ID
-    client = MultiServerMCPClient(
-        {
-            "parallel": {
-                "transport": "http",
-                "url": PARALLEL_MCP_URL,
-                "headers": {"User-Agent": "SWE-Forge/0.1.0"},
-                "timeout": timedelta(seconds=WEB_SEARCH_TIMEOUT_SECONDS),
-            }
+    connections: dict[str, Connection] = {
+        "parallel": {
+            "transport": "streamable_http",
+            "url": PARALLEL_MCP_URL,
+            "headers": {"User-Agent": "SWE-Forge/0.1.0"},
+            "timeout": timedelta(seconds=WEB_SEARCH_TIMEOUT_SECONDS),
         }
-    )
+    }
+    client = MultiServerMCPClient(connections)
     async with client.session("parallel") as session:
         response = await session.call_tool(
             "web_search",
